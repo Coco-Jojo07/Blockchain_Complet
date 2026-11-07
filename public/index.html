@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blockchain financière : saisie des transactions</title>
+<style>
+:root {
+  --papier: #E8EEEA; --surface: #F7FAF8; --encre: #1C2B2A; --encre-2: #51655F; --filet: #C2D0CA;
+  --vert: #2F5D50; --vert-pale: #D3E3DB; --sceau: #8C2F39; --sceau-pale: #F3DCDF; --sur-vert: #F7FAF8;
+  --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --papier: #111A18; --surface: #192521; --encre: #DCE7E2; --encre-2: #9AB0A8; --filet: #2D3F3A;
+    --vert: #80BBA6; --vert-pale: #1E3830; --sceau: #E27A85; --sceau-pale: #3B2024; --sur-vert: #0F1A17;
+    color-scheme: dark;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--papier); color: var(--encre); font-family: var(--sans); line-height: 1.5; }
+:focus-visible { outline: 2px solid var(--vert); outline-offset: 2px; }
+.page { max-width: 980px; margin: 0 auto; padding: clamp(16px, 4vw, 48px); }
+header { border-bottom: 2px solid var(--encre); padding-bottom: 20px; margin-bottom: 28px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px; }
+h1 { margin: 0; font-size: clamp(1.9rem, 5vw, 2.8rem); font-weight: 800; line-height: 1; letter-spacing: -.01em; }
+header p { margin: 8px 0 0; color: var(--encre-2); max-width: 52ch; }
+.etat { padding: 8px 16px; border: 2px solid var(--vert); border-radius: 999px; color: var(--vert); font-weight: 700; background: var(--surface); }
+.etat.ko { border-color: var(--sceau); color: var(--sceau); background: var(--sceau-pale); }
+.grille { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 24px; align-items: start; }
+@media (max-width: 760px) { .grille { grid-template-columns: minmax(0, 1fr); } }
+.panneau { background: var(--surface); border: 1px solid var(--filet); border-radius: 6px; padding: 22px; }
+.panneau.attaque { border-color: var(--sceau); }
+h2 { margin: 0 0 6px; font-size: 1.2rem; }
+.aide { margin: 0 0 16px; color: var(--encre-2); font-size: .9rem; }
+label { display: block; margin-bottom: 14px; font-weight: 600; font-size: .92rem; }
+input[type="text"], input[type="number"] { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; font: inherit; font-weight: 400;
+  color: var(--encre); background: var(--papier); border: 1px solid var(--filet); border-radius: 4px; }
+input:focus { outline: 2px solid var(--vert); outline-offset: 0; }
+.case { display: flex; gap: 10px; align-items: flex-start; font-weight: 400; }
+.case input { margin-top: 4px; accent-color: var(--sceau); }
+button { width: 100%; padding: 12px 16px; font: inherit; font-weight: 700; border: none; border-radius: 4px; cursor: pointer; background: var(--vert); color: var(--sur-vert); }
+button:disabled { opacity: .5; cursor: wait; }
+.attaque button { background: var(--sceau); color: var(--surface); }
+.message { margin-top: 16px; padding: 12px 14px; border-radius: 4px; font-size: .92rem; }
+.message:empty { display: none; }
+.message.ok { background: var(--vert-pale); }
+.message.ko { background: var(--sceau-pale); }
+.message ul { margin: 6px 0 0; padding-left: 20px; }
+.hash { font-family: var(--mono); font-size: .82rem; word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div>
+      <h1>Blockchain financière</h1>
+      <p>Saisissez un transfert : le serveur le scelle dans un nouveau bloc SHA-256. Le détail de chaque bloc s’affiche dans le terminal du serveur.</p>
+    </div>
+    <div id="etat" class="etat" role="status" aria-live="polite">Connexion au serveur…</div>
+  </header>
+
+  <div class="grille">
+    <section class="panneau" aria-labelledby="t1">
+      <h2 id="t1">Nouvelle transaction</h2>
+      <p class="aide">Tous les champs sont obligatoires. Le montant est un nombre entier de FCFA.</p>
+      <form id="form-tx" novalidate>
+        <label>Votre nom (expéditeur)<input id="expediteur" type="text" maxlength="60" autocomplete="name"></label>
+        <label>Destinataire<input id="destinataire" type="text" maxlength="60" autocomplete="off"></label>
+        <label>Montant (FCFA)<input id="montant" type="number" min="1" step="1" inputmode="numeric"></label>
+        <button id="b-tx" type="submit">Envoyer et miner le bloc</button>
+      </form>
+      <div id="msg-tx" class="message" aria-live="polite"></div>
+    </section>
+
+    <section class="panneau attaque" aria-labelledby="t2">
+      <h2 id="t2">Simulation d’attaque</h2>
+      <p class="aide">Modifiez le montant d’un bloc déjà enregistré pour voir la détection et la destruction de la chaîne dans le terminal.</p>
+      <form id="form-attaque" novalidate>
+        <label>Numéro du bloc<input id="index" type="number" min="0" step="1" value="1"></label>
+        <label>Nouveau montant (FCFA)<input id="nouveau-montant" type="text" inputmode="numeric" value="999999"></label>
+        <label class="case"><input id="reminer" type="checkbox"><span>Re-miner le bloc modifié (l’attaquant recalcule un hash valide)</span></label>
+        <button id="b-attaque" type="submit">Falsifier le bloc</button>
+      </form>
+      <div id="msg-attaque" class="message" aria-live="polite"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var nf = new Intl.NumberFormat('fr-FR');
+
+  function esc(v) {
+    return String(v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function afficher(zone, type, html) {
+    zone.className = 'message ' + type;
+    zone.innerHTML = html;
+  }
+
+  function liste(erreurs) {
+    return '<ul>' + erreurs.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>';
+  }
+
+  function envoyer(url, donnees) {
+    return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(donnees) })
+      .then(function (r) { return r.json().then(function (j) { return { statut: r.status, json: j }; }); });
+  }
+
+  function rafraichirEtat() {
+    return fetch('/api/chaine').then(function (r) { return r.json(); }).then(function (c) {
+      $('etat').className = 'etat';
+      $('etat').textContent = c.blocs + (c.blocs > 1 ? ' blocs dans la chaîne' : ' bloc dans la chaîne');
+      $('index').max = c.blocs - 1;
+    }).catch(function () {
+      $('etat').className = 'etat ko';
+      $('etat').textContent = 'Serveur injoignable';
+    });
+  }
+
+  var serveurKo = 'Le serveur ne répond pas. Lancez « npm start » dans le dossier du projet puis rechargez la page.';
+
+  $('form-tx').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var zone = $('msg-tx');
+    var brut = $('montant').value.trim();
+    var tx = {
+      expediteur: $('expediteur').value.trim(),
+      destinataire: $('destinataire').value.trim(),
+      montant: brut === '' ? null : Number(brut)
+    };
+    $('b-tx').disabled = true;
+    $('b-tx').textContent = 'Minage en cours…';
+    envoyer('/api/transactions', tx).then(function (r) {
+      if (r.json.ok) {
+        afficher(zone, 'ok', '<strong>Bloc #' + r.json.index + ' ajouté</strong> (nonce ' + nf.format(r.json.nonce) + '). Le détail est dans le terminal.' +
+          '<div class="hash">' + esc(r.json.hash) + '</div>');
+        $('destinataire').value = '';
+        $('montant').value = '';
+        $('destinataire').focus();
+      } else if (r.json.detruite) {
+        afficher(zone, 'ko', '<strong>La chaîne était compromise et a été détruite.</strong> Une nouvelle chaîne a été créée ; renvoyez la transaction.' + liste(r.json.erreurs));
+      } else {
+        afficher(zone, 'ko', '<strong>Transaction refusée.</strong>' + liste(r.json.erreurs || ['Erreur inconnue.']));
+      }
+    }).catch(function () {
+      afficher(zone, 'ko', esc(serveurKo));
+    }).then(function () {
+      $('b-tx').disabled = false;
+      $('b-tx').textContent = 'Envoyer et miner le bloc';
+      rafraichirEtat();
+    });
+  });
+
+  $('form-attaque').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var zone = $('msg-attaque');
+    $('b-attaque').disabled = true;
+    envoyer('/api/simulation/falsifier', {
+      index: Number($('index').value),
+      montant: $('nouveau-montant').value,
+      reminer: $('reminer').checked
+    }).then(function (r) {
+      if (!r.json.ok) afficher(zone, 'ko', '<strong>Impossible de falsifier.</strong>' + liste(r.json.erreurs));
+      else if (r.json.detruite) afficher(zone, 'ko', '<strong>Falsification détectée : la chaîne a été détruite.</strong>' + liste(r.json.erreurs));
+      else afficher(zone, 'ok', '<strong>Aucune incohérence détectée.</strong> Seul le dernier bloc, re-miné avec un montant valide, passe inaperçu sur un nœud isolé.');
+    }).catch(function () {
+      afficher(zone, 'ko', esc(serveurKo));
+    }).then(function () {
+      $('b-attaque').disabled = false;
+      rafraichirEtat();
+    });
+  });
+
+  rafraichirEtat();
+})();
+</script>
+</body>
+</html>

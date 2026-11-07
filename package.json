@@ -1,0 +1,13 @@
+{
+  "name": "blockchain-finance-web",
+  "version": "1.0.0",
+  "description": "Mini-blockchain financiere : saisie dans le navigateur, formation des blocs affichee dans le terminal",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
