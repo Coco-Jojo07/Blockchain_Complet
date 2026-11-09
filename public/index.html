@@ -69,7 +69,7 @@ button:disabled { opacity: .5; cursor: wait; }
         <label>Votre nom (expéditeur)<input id="expediteur" type="text" maxlength="60" autocomplete="name"></label>
         <label>Destinataire<input id="destinataire" type="text" maxlength="60" autocomplete="off"></label>
         <label>Montant (FCFA)<input id="montant" type="number" min="1" step="1" inputmode="numeric"></label>
-        <button id="b-tx" type="submit">Envoyer et miner le bloc</button>
+        <button id="b-tx" type="submit">Envoyer</button>
       </form>
       <div id="msg-tx" class="message" aria-live="polite"></div>
     </section>
@@ -154,7 +154,7 @@ button:disabled { opacity: .5; cursor: wait; }
       afficher(zone, 'ko', esc(serveurKo));
     }).then(function () {
       $('b-tx').disabled = false;
-      $('b-tx').textContent = 'Envoyer et miner le bloc';
+      $('b-tx').textContent = 'Envoyer';
       rafraichirEtat();
     });
   });
